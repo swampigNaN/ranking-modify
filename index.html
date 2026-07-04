@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>スコア管理システム（簡易版）</title>
+    <title>スコア管理システム（名前変更・削除特化版）</title>
     <style>
-        /* --- 全体のスタイリング（見やすさ重視のクリーンなデザイン） --- */
+        /* --- 全体のスタイリング --- */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -24,28 +24,6 @@
         h1 { font-size: 28px; margin-bottom: 30px; color: #2c3e50; border-left: 5px solid #3498db; padding-left: 15px; }
         h2 { font-size: 20px; margin-bottom: 20px; color: #34495e; }
 
-        /* --- 新規登録エリア --- */
-        .add-form {
-            background: #f1f2f6;
-            padding: 25px;
-            border-radius: 12px;
-            margin-bottom: 40px;
-            display: flex;
-            gap: 20px;
-            align-items: flex-end;
-            flex-wrap: wrap;
-        }
-        .form-group { flex: 1; min-width: 180px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px; }
-        input[type="text"], input[type="number"], select {
-            width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; background: white;
-        }
-        .btn-add {
-            padding: 12px 30px; background-color: #2ecc71; color: white; border: none;
-            border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; height: 48px;
-        }
-        .btn-add:hover { background-color: #27ae60; }
-
         /* --- データ一覧（テーブル） --- */
         .table-container { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; text-align: left; font-size: 16px; }
@@ -53,11 +31,13 @@
         th { background-color: #f8f9fa; color: #7f8c8d; font-weight: bold; }
         tr:hover { background-color: #f1f2f6; }
 
-        /* --- 操作ボタン --- */
+        /* --- 操作ボタン（色分けして分かりやすく） --- */
         .btn-action {
-            padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold;
+            padding: 8px 14px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold;
             cursor: pointer; transition: 0.2s; margin-right: 5px;
         }
+        .btn-edit-name { background-color: #f39c12; color: white; }
+        .btn-edit-name:hover { background-color: #d35400; }
         .btn-edit-score { background-color: #3498db; color: white; }
         .btn-edit-score:hover { background-color: #2980b9; }
         .btn-edit-faction { background-color: #9b59b6; color: white; }
@@ -72,25 +52,6 @@
 
 <div class="container">
     <h1>スコア データの閲覧・変更</h1>
-
-    <div class="add-form">
-        <div class="form-group">
-            <label>ユーザー名（名前）</label>
-            <input type="text" id="new-name" placeholder="例: すずき次郎">
-        </div>
-        <div class="form-group">
-            <label>点数</label>
-            <input type="number" id="new-score" placeholder="0" min="0">
-        </div>
-        <div class="form-group">
-            <label>陣営</label>
-            <select id="new-faction">
-                <option value="kinoko">きのこの山</option>
-                <option value="takenoko">たけのこの里</option>
-            </select>
-        </div>
-        <button id="add-btn" class="btn-add">＋ 新規追加</button>
-    </div>
 
     <h2>登録されているユーザー一覧（リアルタイム同期）</h2>
     <div class="table-container">
@@ -116,7 +77,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getDatabase, ref, onValue, set, remove, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-    // Firebaseの設定（既存のものをそのまま使用）
+    // Firebaseの接続設定
     const firebaseConfig = {
         apiKey: "AIzaSyA2lcY-0TXBKFN2VajwSuQha8TfBvJeQk8",
         authDomain: "ranking-73f77.firebaseapp.com",
@@ -132,12 +93,8 @@
     const db = getDatabase(app);
 
     const tableBody = document.getElementById('data-table-body');
-    const newNameInput = document.getElementById('new-name');
-    const newScoreInput = document.getElementById('new-score');
-    const newFactionSelect = document.getElementById('new-faction');
-    const addBtn = document.getElementById('add-btn');
 
-    // データベースの「scores」内を監視して表を自動更新する処理
+    // scores配下のデータを監視してテーブルをリアルタイム描画
     const scoresRef = ref(db, 'scores');
     onValue(scoresRef, (snapshot) => {
         tableBody.innerHTML = '';
@@ -147,7 +104,7 @@
             return;
         }
 
-        // データを1件ずつ取り出して表の行を作成
+        // 各ユーザーの行を生成
         snapshot.forEach(childSnapshot => {
             const name = childSnapshot.key;
             const data = childSnapshot.val();
@@ -156,10 +113,11 @@
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td style="font-weight: bold;">${name}</td>
+                <td style="font-weight: bold; font-size: 18px;">${name}</td>
                 <td style="font-size: 18px; color: #2c3e50;">${score} 点</td>
                 <td>${faction}</td>
                 <td>
+                    <button class="btn-action btn-edit-name" data-name="${name}" data-score="${score}" data-faction="${data.faction}">名前を変更</button>
                     <button class="btn-action btn-edit-score" data-name="${name}" data-score="${score}">点数を変更</button>
                     <button class="btn-action btn-edit-faction" data-name="${name}" data-current="${data.faction}">陣営を切り替え</button>
                     <button class="btn-action btn-delete" data-name="${name}">🗑️ 削除</button>
@@ -169,11 +127,28 @@
         });
     });
 
-    // 表の中のボタン（変更・削除）が押された時の処理
+    // 各種操作ボタンのクリックイベント処理
     tableBody.addEventListener('click', (e) => {
         const target = e.target;
         const name = target.getAttribute('data-name');
         if (!name) return;
+
+        // 名前を変更する処理（新名を作成して旧名を削除する処理を同時に実行）
+        if (target.classList.contains('btn-edit-name')) {
+            const currentScore = Number(target.getAttribute('data-score'));
+            const currentFaction = target.getAttribute('data-faction');
+            const newName = prompt(`【${name}】さんの新しい名前を入力してください：`, name);
+            
+            if (newName !== null && newName.trim() !== "" && newName.trim() !== name) {
+                const cleanedName = newName.trim();
+                const updates = {};
+                // 新しい名前の場所にデータをセットし、古い名前の場所をnull（削除）にする
+                updates[`scores/${cleanedName}`] = { score: currentScore, faction: currentFaction };
+                updates[`scores/${name}`] = null;
+                
+                update(ref(db), updates).catch(err => alert("名前変更エラー: " + err.message));
+            }
+        }
 
         // 点数を変更する処理
         if (target.classList.contains('btn-edit-score')) {
@@ -203,29 +178,6 @@
                 remove(ref(db, `scores/${name}`));
             }
         }
-    });
-
-    // 新しくデータを追加する処理
-    addBtn.addEventListener('click', () => {
-        const name = newNameInput.value.trim();
-        const score = newScoreInput.value.trim();
-        const faction = newFactionSelect.value;
-
-        if (!name || !score) {
-            alert("名前と点数を入力してください。");
-            return;
-        }
-
-        set(ref(db, `scores/${name}`), {
-            score: Number(score),
-            faction: faction
-        }).then(() => {
-            // 入力欄をクリア
-            newNameInput.value = '';
-            newScoreInput.value = '';
-        }).catch(err => {
-            alert("追加エラー: " + err.message);
-        });
     });
 </script>
 </body>
