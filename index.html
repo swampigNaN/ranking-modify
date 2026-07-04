@@ -3,138 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>簡易 Firebase Realtime Database コンソール</title>
+    <title>スコア管理システム（簡易版）</title>
     <style>
-        /* --- 全体のスタイリング（Firebase風のダーク・ブルーテーマ） --- */
+        /* --- 全体のスタイリング（見やすさ重視のクリーンなデザイン） --- */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f6f9;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f8f9fa;
             color: #333;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-        header {
-            background-color: #1a73e8;
-            color: white;
-            padding: 20px 40px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        header h1 { font-size: 24px; }
-        .badge {
-            background-color: #34a853;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-
-        .main-layout {
-            display: flex;
-            flex: 1;
             padding: 30px;
-            gap: 30px;
         }
-
-        /* --- 左側：データ追加・変更パネル --- */
-        .panel-editor {
-            flex: 1;
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
             background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            height: fit-content;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.05);
         }
-        .panel-editor h2 { font-size: 20px; margin-bottom: 20px; color: #1a73e8; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px; color: #555; }
+        h1 { font-size: 28px; margin-bottom: 30px; color: #2c3e50; border-left: 5px solid #3498db; padding-left: 15px; }
+        h2 { font-size: 20px; margin-bottom: 20px; color: #34495e; }
+
+        /* --- 新規登録エリア --- */
+        .add-form {
+            background: #f1f2f6;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 40px;
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .form-group { flex: 1; min-width: 180px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px; }
         input[type="text"], input[type="number"], select {
-            width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; transition: 0.2s;
+            width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; background: white;
         }
-        input:focus, select:focus { border-color: #1a73e8; outline: none; }
-        .btn {
-            width: 100%; padding: 14px; background-color: #1a73e8; color: white; border: none;
-            border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s;
+        .btn-add {
+            padding: 12px 30px; background-color: #2ecc71; color: white; border: none;
+            border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; height: 48px;
         }
-        .btn:hover { background-color: #1557b0; }
+        .btn-add:hover { background-color: #27ae60; }
 
-        /* --- 右側：データツリー表示パネル --- */
-        .panel-viewer {
-            flex: 2;
-            background: #282c34;
-            color: #abb2bf;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            font-family: 'Courier New', Courier, monospace;
-            overflow-x: auto;
-        }
-        .panel-viewer h2 { font-size: 20px; margin-bottom: 20px; color: #61afef; border-bottom: 1px solid #3e4451; padding-bottom: 10px; font-family: sans-serif; }
-        
-        /* ツリー構造のネスト表現 */
-        .tree-node { margin-left: 24px; border-left: 1px dashed #4b5263; padding-left: 15px; margin-top: 8px; }
-        .tree-leaf { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
-        
-        .key { color: #e06c75; font-weight: bold; }
-        .value-string { color: #98c379; }
-        .value-number { color: #d19a66; }
-        
-        /* クイック操作ボタン */
-        .actions { display: inline-flex; gap: 8px; margin-left: 15px; }
-        .action-btn {
-            background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; transition: 0.2s;
-        }
-        .btn-edit { color: #61afef; background-color: rgba(97, 175, 239, 0.1); }
-        .btn-edit:hover { background-color: rgba(97, 175, 239, 0.3); }
-        .btn-delete { color: #e06c75; background-color: rgba(224, 108, 117, 0.1); }
-        .btn-delete:hover { background-color: rgba(224, 108, 117, 0.3); }
+        /* --- データ一覧（テーブル） --- */
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 16px; }
+        th, td { padding: 16px; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; color: #7f8c8d; font-weight: bold; }
+        tr:hover { background-color: #f1f2f6; }
 
-        .empty-notice { color: #5c6370; font-style: italic; padding: 20px 0; }
+        /* --- 操作ボタン --- */
+        .btn-action {
+            padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold;
+            cursor: pointer; transition: 0.2s; margin-right: 5px;
+        }
+        .btn-edit-score { background-color: #3498db; color: white; }
+        .btn-edit-score:hover { background-color: #2980b9; }
+        .btn-edit-faction { background-color: #9b59b6; color: white; }
+        .btn-edit-faction:hover { background-color: #8e44ad; }
+        .btn-delete { background-color: #e74c3c; color: white; }
+        .btn-delete:hover { background-color: #c0392b; }
+
+        .loading { font-size: 18px; color: #999; text-align: center; padding: 40px; }
     </style>
 </head>
 <body>
 
-<header>
-    <h1>Firebase Realtime Database Console (簡易版)</h1>
-    <span class="badge">リアルタイム同期中</span>
-</header>
+<div class="container">
+    <h1>スコア データの閲覧・変更</h1>
 
-<div class="main-layout">
-    <div class="panel-editor">
-        <h2>データの追加 / 更新</h2>
+    <div class="add-form">
         <div class="form-group">
-            <label id="path-label">ターゲットパス (スラッシュ区切り)</label>
-            <input type="text" id="db-path" placeholder="例: scores/たなか太郎" value="scores/">
+            <label>ユーザー名（名前）</label>
+            <input type="text" id="new-name" placeholder="例: すずき次郎">
         </div>
         <div class="form-group">
-            <label>キー (省略可: オブジェクト全体を書き換える場合)</label>
-            <input type="text" id="db-key" placeholder="例: score">
+            <label>点数</label>
+            <input type="number" id="new-score" placeholder="0" min="0">
         </div>
         <div class="form-group">
-            <label>データ型</label>
-            <select id="db-type">
-                <option value="string">文字列 (String)</option>
-                <option value="number">数値 (Number)</option>
-                <option value="json">JSONオブジェクト / 値</option>
+            <label>陣営</label>
+            <select id="new-faction">
+                <option value="kinoko">きのこの山</option>
+                <option value="takenoko">たけのこの里</option>
             </select>
         </div>
-        <div class="form-group">
-            <label>値</label>
-            <input type="text" id="db-value" placeholder="例: 100 や {&quot;faction&quot;: &quot;kinoko&quot;}">
-        </div>
-        <button id="write-btn" class="btn">データベースに書き込み</button>
+        <button id="add-btn" class="btn-add">＋ 新規追加</button>
     </div>
 
-    <div class="panel-viewer">
-        <h2>root { }</h2>
-        <div id="tree-container">
-            <div class="empty-notice">データを読み込んでいます...</div>
-        </div>
+    <h2>登録されているユーザー一覧（リアルタイム同期）</h2>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ユーザー名</th>
+                    <th>点数</th>
+                    <th>陣営</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="data-table-body">
+                <tr>
+                    <td colspan="4" class="loading">データを読み込んでいます...</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -142,7 +116,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getDatabase, ref, onValue, set, remove, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-    // 接続設定（既存のプロジェクト情報をそのまま使用）
+    // Firebaseの設定（既存のものをそのまま使用）
     const firebaseConfig = {
         apiKey: "AIzaSyA2lcY-0TXBKFN2VajwSuQha8TfBvJeQk8",
         authDomain: "ranking-73f77.firebaseapp.com",
@@ -157,151 +131,101 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const treeContainer = document.getElementById('tree-container');
-    const dbPathInput = document.getElementById('db-path');
-    const dbKeyInput = document.getElementById('db-key');
-    const dbTypeSelect = document.getElementById('db-type');
-    const dbValueInput = document.getElementById('db-value');
-    const writeBtn = document.getElementById('write-btn');
+    const tableBody = document.getElementById('data-table-body');
+    const newNameInput = document.getElementById('new-name');
+    const newScoreInput = document.getElementById('new-score');
+    const newFactionSelect = document.getElementById('new-faction');
+    const addBtn = document.getElementById('add-btn');
 
-    // ルート（全データ）監視の開始
-    const rootRef = ref(db, '/');
-    onValue(rootRef, (snapshot) => {
-        treeContainer.innerHTML = '';
+    // データベースの「scores」内を監視して表を自動更新する処理
+    const scoresRef = ref(db, 'scores');
+    onValue(scoresRef, (snapshot) => {
+        tableBody.innerHTML = '';
+        
         if (!snapshot.exists()) {
-            treeContainer.innerHTML = '<div class="empty-notice">データベースは空です。</div>';
+            tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#999;">データがありません。</td></tr>';
             return;
         }
-        // 再帰処理でJSONをツリーUIに変換
-        renderTree(snapshot.val(), treeContainer, '');
+
+        // データを1件ずつ取り出して表の行を作成
+        snapshot.forEach(childSnapshot => {
+            const name = childSnapshot.key;
+            const data = childSnapshot.val();
+            const score = data.score ?? 0;
+            const faction = data.faction === 'kinoko' ? 'きのこの山' : 'たけのこの里';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight: bold;">${name}</td>
+                <td style="font-size: 18px; color: #2c3e50;">${score} 点</td>
+                <td>${faction}</td>
+                <td>
+                    <button class="btn-action btn-edit-score" data-name="${name}" data-score="${score}">点数を変更</button>
+                    <button class="btn-action btn-edit-faction" data-name="${name}" data-current="${data.faction}">陣営を切り替え</button>
+                    <button class="btn-action btn-delete" data-name="${name}">🗑️ 削除</button>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+        });
     });
 
-    // 再帰的にJSONオブジェクトを走査してHTML要素を組み立てる関数
-    function renderTree(obj, container, currentPath) {
-        if (typeof obj === 'object' && obj !== null) {
-            Object.keys(obj).forEach(key => {
-                const value = obj[key];
-                const newPath = currentPath ? `${currentPath}/${key}` : key;
-                
-                const nodeDiv = document.createElement('div');
-                nodeDiv.className = 'tree-node';
+    // 表の中のボタン（変更・削除）が押された時の処理
+    tableBody.addEventListener('click', (e) => {
+        const target = e.target;
+        const name = target.getAttribute('data-name');
+        if (!name) return;
 
-                if (typeof value === 'object' && value !== null) {
-                    // ネストされたオブジェクトの場合
-                    nodeDiv.innerHTML = `
-                        <div>
-                            <span class="key">"${key}"</span>: {
-                                <div class="actions">
-                                    <button class="action-btn btn-edit" data-action="add-child" data-path="${newPath}">＋子要素</button>
-                                    <button class="action-btn btn-delete" data-action="delete" data-path="${newPath}">🗑️</button>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    container.appendChild(nodeDiv);
-                    renderTree(value, nodeDiv, newPath);
-                    
-                    const closeDiv = document.createElement('div');
-                    closeDiv.style.marginLeft = '24px';
-                    closeDiv.innerHTML = `<span style="color: #abb2bf">}</span>`;
-                    nodeDiv.appendChild(closeDiv);
+        // 点数を変更する処理
+        if (target.classList.contains('btn-edit-score')) {
+            const currentScore = target.getAttribute('data-score');
+            const newScore = prompt(`【${name}】さんの新しい点数を入力してください：`, currentScore);
+            
+            if (newScore !== null && newScore.trim() !== "") {
+                const num = Number(newScore);
+                if (!isNaN(num)) {
+                    update(ref(db, `scores/${name}`), { score: num });
                 } else {
-                    // 末端の値（文字列・数値・真偽値など）の場合
-                    const valueClass = typeof value === 'number' ? 'value-number' : 'value-string';
-                    const displayValue = typeof value === 'string' ? `"${value}"` : value;
-                    
-                    nodeDiv.className = 'tree-leaf';
-                    nodeDiv.style.marginLeft = '24px';
-                    nodeDiv.innerHTML = `
-                        <span class="key">"${key}"</span>: 
-                        <span class="${valueClass}">${displayValue}</span>
-                        <div class="actions">
-                            <button class="action-btn btn-edit" data-action="quick-edit" data-path="${currentPath}" data-key="${key}" data-val='${JSON.stringify(value)}'>✏️</button>
-                            <button class="action-btn btn-delete" data-action="delete" data-path="${newPath}">🗑️</button>
-                        </div>
-                    `;
-                    container.appendChild(nodeDiv);
+                    alert("有効な数値を入力してください。");
                 }
-            });
-        }
-    }
-
-    // ツリー内のボタン（編集・削除）イベントの委譲処理
-    treeContainer.addEventListener('click', (e) => {
-        const action = e.target.getAttribute('data-action');
-        const path = e.target.getAttribute('data-path');
-
-        if (!action) return;
-
-        if (action === 'delete') {
-            if (confirm(`本当に次のパスのデータを削除しますか？\nパス: ${path}`)) {
-                remove(ref(db, path)).catch(err => alert("削除エラー: " + err.message));
             }
-        } else if (action === 'quick-edit') {
-            // パネルの入力欄にデータをセットして編集しやすくする
-            const key = e.target.getAttribute('data-key');
-            const val = JSON.parse(e.target.getAttribute('data-val'));
-            dbPathInput.value = path;
-            dbKeyInput.value = key;
-            dbTypeSelect.value = typeof val === 'number' ? 'number' : 'string';
-            dbValueInput.value = val;
-            dbValueInput.focus();
-        } else if (action === 'add-child') {
-            // 指定されたオブジェクト配下に子要素を追加する準備
-            dbPathInput.value = path;
-            dbKeyInput.value = '';
-            dbValueInput.value = '';
-            dbKeyInput.focus();
+        }
+
+        // 陣営を切り替える処理
+        if (target.classList.contains('btn-edit-faction')) {
+            const currentFaction = target.getAttribute('data-current');
+            const nextFaction = currentFaction === 'kinoko' ? 'takenoko' : 'kinoko';
+            update(ref(db, `scores/${name}`), { faction: nextFaction });
+        }
+
+        // データを削除する処理
+        if (target.classList.contains('btn-delete')) {
+            if (confirm(`本当に【${name}】さんのデータを削除しますか？`)) {
+                remove(ref(db, `scores/${name}`));
+            }
         }
     });
 
-    // 書き込みボタンクリック時の処理
-    writeBtn.addEventListener('click', () => {
-        let path = dbPathInput.value.trim();
-        const key = dbKeyInput.value.trim();
-        const type = dbTypeSelect.value;
-        let rawValue = dbValueInput.value;
+    // 新しくデータを追加する処理
+    addBtn.addEventListener('click', () => {
+        const name = newNameInput.value.trim();
+        const score = newScoreInput.value.trim();
+        const faction = newFactionSelect.value;
 
-        if (!path) {
-            alert("パスを入力してください。");
+        if (!name || !score) {
+            alert("名前と点数を入力してください。");
             return;
         }
 
-        // パス末尾のスラッシュなどを調整
-        if (path.startsWith('/')) path = path.substring(1);
-        if (path.endsWith('/')) path = path.slice(0, -1);
-
-        // 型に応じた値のパース処理
-        let parsedValue;
-        if (type === 'number') {
-            parsedValue = Number(rawValue);
-            if (isNaN(parsedValue)) {
-                alert("有効な数値を入力してください。");
-                return;
-            }
-        } else if (type === 'json') {
-            try {
-                parsedValue = JSON.parse(rawValue);
-            } catch (e) {
-                alert("JSONのパースに失敗しました。正しいオブジェクト形式か確認してください。");
-                return;
-            }
-        } else {
-            parsedValue = rawValue;
-        }
-
-        // キーが指定されている場合はパスと結合、空ならそのパス自体に上書き/更新
-        const targetPath = key ? `${path}/${key}` : path;
-
-        set(ref(db, targetPath), parsedValue)
-            .then(() => {
-                // 入力欄を部分的にリセット
-                dbKeyInput.value = '';
-                dbValueInput.value = '';
-            })
-            .catch(err => {
-                alert("書き込みエラー: " + err.message);
-            });
+        set(ref(db, `scores/${name}`), {
+            score: Number(score),
+            faction: faction
+        }).then(() => {
+            // 入力欄をクリア
+            newNameInput.value = '';
+            newScoreInput.value = '';
+        }).catch(err => {
+            alert("追加エラー: " + err.message);
+        });
     });
 </script>
 </body>
