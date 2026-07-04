@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>簡易 Firebase Realtime Database コンソール</title>
+    <style>
+        /* --- 全体のスタイリング（Firebase風のダーク・ブルーテーマ） --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            background-color: #1a73e8;
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        header h1 { font-size: 24px; }
+        .badge {
+            background-color: #34a853;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .main-layout {
+            display: flex;
+            flex: 1;
+            padding: 30px;
+            gap: 30px;
+        }
+
+        /* --- 左側：データ追加・変更パネル --- */
+        .panel-editor {
+            flex: 1;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            height: fit-content;
+        }
+        .panel-editor h2 { font-size: 20px; margin-bottom: 20px; color: #1a73e8; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px; color: #555; }
+        input[type="text"], input[type="number"], select {
+            width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; transition: 0.2s;
+        }
+        input:focus, select:focus { border-color: #1a73e8; outline: none; }
+        .btn {
+            width: 100%; padding: 14px; background-color: #1a73e8; color: white; border: none;
+            border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        .btn:hover { background-color: #1557b0; }
+
+        /* --- 右側：データツリー表示パネル --- */
+        .panel-viewer {
+            flex: 2;
+            background: #282c34;
+            color: #abb2bf;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-family: 'Courier New', Courier, monospace;
+            overflow-x: auto;
+        }
+        .panel-viewer h2 { font-size: 20px; margin-bottom: 20px; color: #61afef; border-bottom: 1px solid #3e4451; padding-bottom: 10px; font-family: sans-serif; }
+        
+        /* ツリー構造のネスト表現 */
+        .tree-node { margin-left: 24px; border-left: 1px dashed #4b5263; padding-left: 15px; margin-top: 8px; }
+        .tree-leaf { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+        
+        .key { color: #e06c75; font-weight: bold; }
+        .value-string { color: #98c379; }
+        .value-number { color: #d19a66; }
+        
+        /* クイック操作ボタン */
+        .actions { display: inline-flex; gap: 8px; margin-left: 15px; }
+        .action-btn {
+            background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; transition: 0.2s;
+        }
+        .btn-edit { color: #61afef; background-color: rgba(97, 175, 239, 0.1); }
+        .btn-edit:hover { background-color: rgba(97, 175, 239, 0.3); }
+        .btn-delete { color: #e06c75; background-color: rgba(224, 108, 117, 0.1); }
+        .btn-delete:hover { background-color: rgba(224, 108, 117, 0.3); }
+
+        .empty-notice { color: #5c6370; font-style: italic; padding: 20px 0; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Firebase Realtime Database Console (簡易版)</h1>
+    <span class="badge">リアルタイム同期中</span>
+</header>
+
+<div class="main-layout">
+    <div class="panel-editor">
+        <h2>データの追加 / 更新</h2>
+        <div class="form-group">
+            <label id="path-label">ターゲットパス (スラッシュ区切り)</label>
+            <input type="text" id="db-path" placeholder="例: scores/たなか太郎" value="scores/">
+        </div>
+        <div class="form-group">
+            <label>キー (省略可: オブジェクト全体を書き換える場合)</label>
+            <input type="text" id="db-key" placeholder="例: score">
+        </div>
+        <div class="form-group">
+            <label>データ型</label>
+            <select id="db-type">
+                <option value="string">文字列 (String)</option>
+                <option value="number">数値 (Number)</option>
+                <option value="json">JSONオブジェクト / 値</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>値</label>
+            <input type="text" id="db-value" placeholder="例: 100 や {&quot;faction&quot;: &quot;kinoko&quot;}">
+        </div>
+        <button id="write-btn" class="btn">データベースに書き込み</button>
+    </div>
+
+    <div class="panel-viewer">
+        <h2>root { }</h2>
+        <div id="tree-container">
+            <div class="empty-notice">データを読み込んでいます...</div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set, remove, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    // 接続設定（既存のプロジェクト情報をそのまま使用）
+    const firebaseConfig = {
+        apiKey: "AIzaSyA2lcY-0TXBKFN2VajwSuQha8TfBvJeQk8",
+        authDomain: "ranking-73f77.firebaseapp.com",
+        databaseURL: "https://ranking-73f77-default-rtdb.firebaseio.com",
+        projectId: "ranking-73f77",
+        storageBucket: "ranking-73f77.firebasestorage.app",
+        messagingSenderId: "192093284893",
+        appId: "1:192093284893:web:c18f7dbfdec693cce2f4f4",
+        measurementId: "G-9W2L9K2SW3"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const treeContainer = document.getElementById('tree-container');
+    const dbPathInput = document.getElementById('db-path');
+    const dbKeyInput = document.getElementById('db-key');
+    const dbTypeSelect = document.getElementById('db-type');
+    const dbValueInput = document.getElementById('db-value');
+    const writeBtn = document.getElementById('write-btn');
+
+    // ルート（全データ）監視の開始
+    const rootRef = ref(db, '/');
+    onValue(rootRef, (snapshot) => {
+        treeContainer.innerHTML = '';
+        if (!snapshot.exists()) {
+            treeContainer.innerHTML = '<div class="empty-notice">データベースは空です。</div>';
+            return;
+        }
+        // 再帰処理でJSONをツリーUIに変換
+        renderTree(snapshot.val(), treeContainer, '');
+    });
+
+    // 再帰的にJSONオブジェクトを走査してHTML要素を組み立てる関数
+    function renderTree(obj, container, currentPath) {
+        if (typeof obj === 'object' && obj !== null) {
+            Object.keys(obj).forEach(key => {
+                const value = obj[key];
+                const newPath = currentPath ? `${currentPath}/${key}` : key;
+                
+                const nodeDiv = document.createElement('div');
+                nodeDiv.className = 'tree-node';
+
+                if (typeof value === 'object' && value !== null) {
+                    // ネストされたオブジェクトの場合
+                    nodeDiv.innerHTML = `
+                        <div>
+                            <span class="key">"${key}"</span>: {
+                                <div class="actions">
+                                    <button class="action-btn btn-edit" data-action="add-child" data-path="${newPath}">＋子要素</button>
+                                    <button class="action-btn btn-delete" data-action="delete" data-path="${newPath}">🗑️</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(nodeDiv);
+                    renderTree(value, nodeDiv, newPath);
+                    
+                    const closeDiv = document.createElement('div');
+                    closeDiv.style.marginLeft = '24px';
+                    closeDiv.innerHTML = `<span style="color: #abb2bf">}</span>`;
+                    nodeDiv.appendChild(closeDiv);
+                } else {
+                    // 末端の値（文字列・数値・真偽値など）の場合
+                    const valueClass = typeof value === 'number' ? 'value-number' : 'value-string';
+                    const displayValue = typeof value === 'string' ? `"${value}"` : value;
+                    
+                    nodeDiv.className = 'tree-leaf';
+                    nodeDiv.style.marginLeft = '24px';
+                    nodeDiv.innerHTML = `
+                        <span class="key">"${key}"</span>: 
+                        <span class="${valueClass}">${displayValue}</span>
+                        <div class="actions">
+                            <button class="action-btn btn-edit" data-action="quick-edit" data-path="${currentPath}" data-key="${key}" data-val='${JSON.stringify(value)}'>✏️</button>
+                            <button class="action-btn btn-delete" data-action="delete" data-path="${newPath}">🗑️</button>
+                        </div>
+                    `;
+                    container.appendChild(nodeDiv);
+                }
+            });
+        }
+    }
+
+    // ツリー内のボタン（編集・削除）イベントの委譲処理
+    treeContainer.addEventListener('click', (e) => {
+        const action = e.target.getAttribute('data-action');
+        const path = e.target.getAttribute('data-path');
+
+        if (!action) return;
+
+        if (action === 'delete') {
+            if (confirm(`本当に次のパスのデータを削除しますか？\nパス: ${path}`)) {
+                remove(ref(db, path)).catch(err => alert("削除エラー: " + err.message));
+            }
+        } else if (action === 'quick-edit') {
+            // パネルの入力欄にデータをセットして編集しやすくする
+            const key = e.target.getAttribute('data-key');
+            const val = JSON.parse(e.target.getAttribute('data-val'));
+            dbPathInput.value = path;
+            dbKeyInput.value = key;
+            dbTypeSelect.value = typeof val === 'number' ? 'number' : 'string';
+            dbValueInput.value = val;
+            dbValueInput.focus();
+        } else if (action === 'add-child') {
+            // 指定されたオブジェクト配下に子要素を追加する準備
+            dbPathInput.value = path;
+            dbKeyInput.value = '';
+            dbValueInput.value = '';
+            dbKeyInput.focus();
+        }
+    });
+
+    // 書き込みボタンクリック時の処理
+    writeBtn.addEventListener('click', () => {
+        let path = dbPathInput.value.trim();
+        const key = dbKeyInput.value.trim();
+        const type = dbTypeSelect.value;
+        let rawValue = dbValueInput.value;
+
+        if (!path) {
+            alert("パスを入力してください。");
+            return;
+        }
+
+        // パス末尾のスラッシュなどを調整
+        if (path.startsWith('/')) path = path.substring(1);
+        if (path.endsWith('/')) path = path.slice(0, -1);
+
+        // 型に応じた値のパース処理
+        let parsedValue;
+        if (type === 'number') {
+            parsedValue = Number(rawValue);
+            if (isNaN(parsedValue)) {
+                alert("有効な数値を入力してください。");
+                return;
+            }
+        } else if (type === 'json') {
+            try {
+                parsedValue = JSON.parse(rawValue);
+            } catch (e) {
+                alert("JSONのパースに失敗しました。正しいオブジェクト形式か確認してください。");
+                return;
+            }
+        } else {
+            parsedValue = rawValue;
+        }
+
+        // キーが指定されている場合はパスと結合、空ならそのパス自体に上書き/更新
+        const targetPath = key ? `${path}/${key}` : path;
+
+        set(ref(db, targetPath), parsedValue)
+            .then(() => {
+                // 入力欄を部分的にリセット
+                dbKeyInput.value = '';
+                dbValueInput.value = '';
+            })
+            .catch(err => {
+                alert("書き込みエラー: " + err.message);
+            });
+    });
+</script>
+</body>
+</html>
